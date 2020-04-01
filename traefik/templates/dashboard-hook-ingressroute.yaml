@@ -11,10 +11,8 @@ metadata:
     release: {{ .Release.Name | quote }}
     heritage: {{ .Release.Service | quote }}
 spec:
-  entryPoints:
-    - traefik
   routes:
-  - match: PathPrefix(`/dashboard`) || PathPrefix(`/api`)
+  - match: Host(`{{.Values.ingressRoute.dashboard.host}}`)
     kind: Rule
     services:
     - name: api@internal

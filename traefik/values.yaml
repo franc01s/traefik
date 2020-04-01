@@ -19,6 +19,7 @@ deployment:
 ingressRoute:
   dashboard:
     enabled: true
+    host: dashboard.its-k8s-dev.swatchgroup.net
 
 rollingUpdate:
   maxUnavailable: 1
@@ -40,6 +41,8 @@ volumes: []
 #   mountPath: "/config"
 #   type: configMap
 
+debug: false
+
 globalArguments:
   - "--global.checknewversion"
   - "--global.sendanonymoususage"
@@ -49,8 +52,14 @@ globalArguments:
 # Additional arguments to be passed at Traefik's binary
 # All available options available on https://docs.traefik.io/reference/static-configuration/cli/
 ## Use curly braces to pass values: `helm install --set="additionalArguments={--providers.kubernetesingress,--global.checknewversion=true}"`
-additionalArguments: []
-#  - "--providers.kubernetesingress"
+additionalArguments:
+  - "--providers.kubernetesingress"
+  - "--providers.kubernetescrd"
+  - "--accesslog"
+  - "--serverstransport.insecureskipverify"
+
+
+
 
 # Environment variables to be passed to Traefik's binary
 env: []
@@ -89,22 +98,22 @@ ports:
     port: 8000
     # hostPort: 8000
     expose: true
-    exposedPort: 80
+    exposedPort: 8000
     # Use nodeport if set. This is useful if you have configured Traefik in a
     # LoadBalancer
-    # nodePort: 32080
+    nodePort: 32000
   websecure:
-    port: 8443
+    port: 4443
     # hostPort: 8443
     expose: true
-    exposedPort: 443
-    # nodePort: 32443
+    exposedPort: 4443
+    nodePort: 32001
 
 # Options for the main traefik service, where the entrypoints traffic comes
 # from.
 service:
   enabled: true
-  type: LoadBalancer
+  type: NodePort
   # Additional annotations (e.g. for cloud provider specific config)
   annotations: {}
   # Additional entries here will be added to the service spec. Cannot contains
@@ -113,6 +122,7 @@ service:
     # externalTrafficPolicy: Cluster
     # loadBalancerIP: "1.2.3.4"
     # clusterIP: "2.3.4.5"
+
   loadBalancerSourceRanges: []
     # - 192.168.0.1/32
     # - 172.16.0.0/16

@@ -110,6 +110,8 @@ spec:
           - "--api.dashboard=true"
           - "--ping=true"
           - "--providers.kubernetescrd"
+          {{- if .Values.debug}}
+          - "--log.level=DEBUG"
           {{- with .Values.additionalArguments }}
           {{- range . }}
           - {{ . | quote }}
