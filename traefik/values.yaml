@@ -1,7 +1,7 @@
 # Default values for Traefik
 image:
   name: traefik
-  tag: 2.2.0
+  tag: 2.2.1
 
 #
 # Configure the deployment
@@ -10,10 +10,28 @@ deployment:
   enabled: true
   # Number of pods of the deployment
   replicas: 1
-  # Addtional deployment annotations (e.g. for jaeger-operator sidecar injection)
+  # Additional deployment annotations (e.g. for jaeger-operator sidecar injection)
   annotations: {}
   # Additional pod annotations (e.g. for mesh injection or prometheus scraping)
   podAnnotations: {}
+  # Additional containers (e.g. for metric offloading sidecars)
+  additionalContainers: []
+  # Additional initContainers (e.g. for setting file permission as shown below)
+  initContainers: []
+    # The "volume-permissions" init container is required if you run into permission issues.
+    # Related issue: https://github.com/containous/traefik/issues/6972
+    # - name: volume-permissions
+    #   image: busybox:1.31.1
+    #   command: ["sh", "-c", "chmod -Rv 600 /data/*"]
+    #   volumeMounts:
+    #     - name: data
+    #       mountPath: /data
+
+# Pod disruption budget
+podDisruptionBudget:
+  enabled: false
+  # maxUnavailable: 1
+  # minAvailable: 0
 
 # Create an IngressRoute for the dashboard
 ingressRoute:
@@ -25,14 +43,22 @@ rollingUpdate:
   maxUnavailable: 1
   maxSurge: 1
 
+
+#
+# Configure providers
+#
+providers:
+  kubernetesCRD:
+    enabled: true
+  kubernetesIngress:
+    enabled: true
+
 #
 # Add volumes to the traefik pod.
 # This can be used to mount a cert pair or a configmap that holds a config.toml file.
 # After the volume has been mounted, add the configs into traefik by using the `additionalArguments` list below, eg:
 # additionalArguments:
 # - "--providers.file.filename=/config/dynamic.toml"
-# - "--tls.certificates.certFile=/certs/tls.crt"
-# - "--tls.certificates.keyFile=/certs/tls.key"
 volumes: []
 # - name: public-cert
 #   mountPath: "/certs"
@@ -53,8 +79,6 @@ globalArguments:
 # All available options available on https://docs.traefik.io/reference/static-configuration/cli/
 ## Use curly braces to pass values: `helm install --set="additionalArguments={--providers.kubernetesingress,--global.checknewversion=true}"`
 additionalArguments:
-  - "--providers.kubernetesingress"
-  - "--providers.kubernetescrd"
   - "--accesslog"
   - "--serverstransport.insecureskipverify"
 
@@ -76,6 +100,12 @@ env: []
 #       name: secret-name
 #       key: secret-key
 
+envFrom: []
+# - configMapRef:
+#     name: config-map-name
+# - secretRef:
+#     name: secret-name
+
 # Configure ports
 ports:
   # The name of this one can't be changed as it is used for the readiness and
@@ -94,18 +124,22 @@ ports:
     expose: false
     # The exposed port for this service
     exposedPort: 9000
+    # The port protocol (TCP/UDP)
+    protocol: TCP
   web:
     port: 8000
     # hostPort: 8000
     expose: true
-    exposedPort: 8000
+    exposedPort: 80
+    # The port protocol (TCP/UDP)
+    protocol: TCP
     # Use nodeport if set. This is useful if you have configured Traefik in a
     # LoadBalancer
     nodePort: 32000
   websecure:
     port: 4443
-    # hostPort: 8443
     expose: true
+    protocol: TCP
     exposedPort: 4443
     nodePort: 32001
 
@@ -153,6 +187,7 @@ autoscaling:
 # It will persist TLS certificates.
 persistence:
   enabled: false
+#  existingClaim: ""
   accessMode: ReadWriteOnce
   size: 128Mi
   # storageClass: ""
@@ -164,6 +199,20 @@ persistence:
 # and replicas>1, a pod anti-affinity is recommended and will be set if the
 # affinity is left as default.
 hostNetwork: false
+
+# Whether Role Based Access Control objects like roles and rolebindings should be created
+rbac:
+  enabled: true
+
+  # If set to false, installs ClusterRole and ClusterRoleBinding so Traefik can be used across namespaces.
+  # If set to true, installs namespace-specific Role and RoleBinding and requires provider configuration be set to that same namespace
+  namespaced: false
+
+# The service account the pods will use to interact with the Kubernetes API
+serviceAccount:
+  # If set, an existing service account is used
+  # If not set, a service account is created automatically using the fullname template
+  name: ""
 
 # Additional serviceAccount annotations (e.g. for oidc authentication)
 serviceAccountAnnotations: {}
@@ -190,3 +239,20 @@ affinity: {}
 #       topologyKey: failure-domain.beta.kubernetes.io/zone
 nodeSelector: {}
 tolerations: []
+
+# Pods can have priority.
+# Priority indicates the importance of a Pod relative to other Pods.
+priorityClassName: ""
+
+# Set the container security context
+# To run the container with ports below 1024 this will need to be adjust to run as root
+securityContext:
+  capabilities:
+    drop: [ALL]
+  readOnlyRootFilesystem: true
+  runAsGroup: 65532
+  runAsNonRoot: true
+  runAsUser: 65532
+
+podSecurityContext:
+  fsGroup: 65532
